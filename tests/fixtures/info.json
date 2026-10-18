@@ -1,0 +1,19 @@
+{
+  "ID": "7TRN:IPZB:QYBB:VPBQ:UWYJ:KHMK:RYTH:WSSW:FBMU:6ZDW:DMXC:Z3UA",
+  "Containers": 6,
+  "ContainersRunning": 5,
+  "ContainersPaused": 0,
+  "ContainersStopped": 1,
+  "Images": 9,
+  "Driver": "overlay2",
+  "KernelVersion": "6.8.0-45-generic",
+  "OperatingSystem": "Ubuntu 24.04.1 LTS",
+  "OSVersion": "24.04",
+  "OSType": "linux",
+  "Architecture": "x86_64",
+  "NCPU": 4,
+  "MemTotal": 16649183232,
+  "DockerRootDir": "/var/lib/docker",
+  "Name": "docker1",
+  "ServerVersion": "27.3.1"
+}

@@ -1,0 +1,61 @@
+id: docker
+name: Docker
+version: 0.1.0
+protocol: 1
+entrypoint: main.py
+timeout_s: 120
+description: >-
+  Docker hosts through the Engine API (over TCP, ideally behind a read-only
+  socket proxy) or through Portainer with an access token: the host's name,
+  operating system, CPUs and memory, and every running container placed
+  under the host that runs it. A container with its own address on a
+  macvlan or ipvlan network, or with published ports, is its own device
+  (with its MAC, IPs and ports); the others are listed as the host's
+  services. Read-only.
+author: Omini
+homepage: https://github.com/riccardoalv/omini-plugin-docker
+fields:
+  - key: source
+    type: select
+    label: Read through
+    options:
+      - Docker Engine
+      - Portainer
+    default: Docker Engine
+    required: true
+    help: >-
+      Docker Engine reads one host's API over TCP (e.g. through a read-only
+      socket proxy); Portainer reads the Docker environments of a Portainer
+      server, as the plugin's README explains.
+  - key: url
+    type: url
+    label: Address
+    required: true
+    help: >-
+      Docker Engine: the API address, e.g. http://192.168.1.50:2375 (a socket
+      proxy) or https://192.168.1.50:2376. Portainer: its web interface, e.g.
+      https://192.168.1.50:9443.
+  - key: token
+    type: secret
+    label: Portainer access token
+    help: >-
+      Portainer only: an access token (My account → Access tokens) of a user
+      that can see the environments. Not used with Docker Engine.
+  - key: environment
+    type: int
+    label: Portainer environment ID
+    help: >-
+      Portainer only: read just this environment (the number in its address,
+      e.g. 2 in #!/2/docker/containers). Empty: every Docker environment.
+  - key: verify_tls
+    type: bool
+    label: Verify the TLS certificate
+    default: false
+    group: Advanced
+    help: Portainer and a Docker API over HTTPS often use a self-signed certificate; turn this on if yours is trusted.
+  - key: timeout_s
+    type: int
+    label: Wait for an answer (seconds)
+    default: 10
+    group: Advanced
+    help: How long to wait for each answer of the API (5 to 120). Raise it if the integration says Docker or Portainer did not answer in time.

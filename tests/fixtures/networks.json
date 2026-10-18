@@ -1,0 +1,15 @@
+[
+  {"Name": "bridge", "Id": "f2de39df4171", "Scope": "local", "Driver": "bridge", "EnableIPv6": false,
+   "IPAM": {"Driver": "default", "Config": [{"Subnet": "172.17.0.0/16", "Gateway": "172.17.0.1"}]},
+   "Options": {"com.docker.network.bridge.default_bridge": "true", "com.docker.network.bridge.name": "docker0"}},
+  {"Name": "host", "Id": "e3b6b8f0c1a2", "Scope": "local", "Driver": "host", "Options": {}},
+  {"Name": "none", "Id": "a1c2d3e4f5a6", "Scope": "local", "Driver": "null", "Options": {}},
+  {"Name": "lan", "Id": "9c1a7e3b2d4f", "Scope": "local", "Driver": "macvlan", "EnableIPv6": true,
+   "IPAM": {"Driver": "default", "Config": [{"Subnet": "192.168.1.0/24", "Gateway": "192.168.1.1"}, {"Subnet": "2001:db8:1::/64"}]},
+   "Options": {"parent": "eth0"}},
+  {"Name": "iot", "Id": "4b5c6d7e8f90", "Scope": "local", "Driver": "ipvlan",
+   "IPAM": {"Driver": "default", "Config": [{"Subnet": "10.0.30.0/24", "Gateway": "10.0.30.1"}]},
+   "Options": {"ipvlan_mode": "l2", "parent": "eth0.30"}},
+  {"Name": "app_default", "Id": "0a1b2c3d4e5f", "Scope": "local", "Driver": "bridge",
+   "Labels": {"com.docker.compose.network": "default", "com.docker.compose.project": "app"}, "Options": {}}
+]

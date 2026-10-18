@@ -1,0 +1,6 @@
+[
+  {"Id": 1, "Name": "local", "Type": 1, "URL": "unix:///var/run/docker.sock", "Status": 1, "PublicURL": ""},
+  {"Id": 2, "Name": "nas", "Type": 2, "URL": "tcp://192.168.1.60:9001", "Status": 1, "PublicURL": "192.168.1.60"},
+  {"Id": 3, "Name": "k3s", "Type": 6, "URL": "tcp://192.168.1.70:9001", "Status": 1},
+  {"Id": 4, "Name": "offsite", "Type": 2, "URL": "tcp://10.8.0.2:9001", "Status": 2}
+]

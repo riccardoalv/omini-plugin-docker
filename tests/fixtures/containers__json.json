@@ -1,0 +1,93 @@
+[
+  {
+    "Id": "8dfafdbc3a40b3c6e5a9c3f1d6c0b8e2a7f4d1c9b0e3a6f2d5c8b1e4a7f0d3c6",
+    "Names": ["/pihole"],
+    "Image": "pihole/pihole:2024.07.0",
+    "ImageID": "sha256:1d2c3b4a",
+    "Command": "start.sh",
+    "Created": 1727000000,
+    "Ports": [
+      {"PrivatePort": 53, "Type": "tcp"},
+      {"PrivatePort": 53, "Type": "udp"},
+      {"PrivatePort": 80, "Type": "tcp"}
+    ],
+    "Labels": {},
+    "State": "running",
+    "Status": "Up 3 days (healthy)",
+    "HostConfig": {"NetworkMode": "lan"},
+    "NetworkSettings": {"Networks": {"lan": {
+      "NetworkID": "9c1a7e3b2d4f", "EndpointID": "aa11", "Gateway": "192.168.1.1",
+      "IPAddress": "192.168.1.53", "IPPrefixLen": 24,
+      "IPv6Gateway": "", "GlobalIPv6Address": "2001:0db8:0001:0000:0000:0000:0000:0053", "GlobalIPv6PrefixLen": 64,
+      "MacAddress": "02:42:C0:A8:01:35"}}},
+    "Mounts": []
+  },
+  {
+    "Id": "2b7e151628aed2a6abf7158809cf4f3c762e7160f38b4da56a784d9045190cfe",
+    "Names": ["/jellyfin"],
+    "Image": "jellyfin/jellyfin:10.9.11",
+    "ImageID": "sha256:5e6f7a8b",
+    "Created": 1727100000,
+    "Ports": [
+      {"IP": "0.0.0.0", "PrivatePort": 8096, "PublicPort": 8096, "Type": "tcp"},
+      {"IP": "::", "PrivatePort": 8096, "PublicPort": 8096, "Type": "tcp"},
+      {"IP": "192.168.1.50", "PrivatePort": 1900, "PublicPort": 1900, "Type": "udp"},
+      {"PrivatePort": 8920, "Type": "tcp"}
+    ],
+    "State": "running",
+    "Status": "Up 3 days",
+    "HostConfig": {"NetworkMode": "bridge"},
+    "NetworkSettings": {"Networks": {"bridge": {
+      "NetworkID": "f2de39df4171", "Gateway": "172.17.0.1", "IPAddress": "172.17.0.2", "IPPrefixLen": 16,
+      "GlobalIPv6Address": "", "GlobalIPv6PrefixLen": 0, "MacAddress": "02:42:ac:11:00:02"}}}
+  },
+  {
+    "Id": "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00",
+    "Names": ["/app-db-1"],
+    "Image": "postgres:16",
+    "Created": 1727200000,
+    "Ports": [{"PrivatePort": 5432, "Type": "tcp"}],
+    "Labels": {"com.docker.compose.project": "app", "com.docker.compose.service": "db"},
+    "State": "running",
+    "Status": "Up 2 days",
+    "HostConfig": {"NetworkMode": "app_default"},
+    "NetworkSettings": {"Networks": {"app_default": {
+      "NetworkID": "0a1b2c3d4e5f", "Gateway": "172.18.0.1", "IPAddress": "172.18.0.2", "IPPrefixLen": 16,
+      "MacAddress": "02:42:ac:12:00:02"}}}
+  },
+  {
+    "Id": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+    "Names": ["/homeassistant"],
+    "Image": "ghcr.io/home-assistant/home-assistant:stable",
+    "Created": 1727300000,
+    "Ports": [],
+    "State": "running",
+    "Status": "Up 5 hours",
+    "HostConfig": {"NetworkMode": "host"},
+    "NetworkSettings": {"Networks": {"host": {"NetworkID": "e3b6b8f0c1a2", "IPAddress": "", "MacAddress": ""}}}
+  },
+  {
+    "Id": "0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123",
+    "Names": ["/adguard"],
+    "Image": "adguard/adguardhome:v0.107.52",
+    "Created": 1727400000,
+    "Ports": [{"PrivatePort": 3000, "Type": "tcp"}],
+    "State": "running",
+    "Status": "Up 1 day",
+    "HostConfig": {"NetworkMode": "iot"},
+    "NetworkSettings": {"Networks": {"iot": {
+      "NetworkID": "4b5c6d7e8f90", "Gateway": "10.0.30.1", "IPAddress": "10.0.30.5", "IPPrefixLen": 24,
+      "MacAddress": ""}}}
+  },
+  {
+    "Id": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+    "Names": ["/old-nginx"],
+    "Image": "nginx:1.25",
+    "Created": 1720000000,
+    "Ports": [],
+    "State": "exited",
+    "Status": "Exited (0) 2 weeks ago",
+    "HostConfig": {"NetworkMode": "bridge"},
+    "NetworkSettings": {"Networks": {"bridge": {"NetworkID": "f2de39df4171", "IPAddress": "", "MacAddress": ""}}}
+  }
+]
