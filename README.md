@@ -35,7 +35,7 @@ The host itself is keyed `docker:<address>` (the Engine API has no MAC addresses
 
 `local_port` is the container's network; `remote_port` is the host's interface behind a macvlan/ipvlan network (`parent`), or its bridge (`docker0`).
 
-Container names (not IDs) are used in keys, so a container recreated by `docker compose up` stays the same device.
+Container names (not IDs) are used in keys, so a container recreated by `docker compose up` stays the same device. A Docker Swarm task (`stack_web.1.<task id>`, or `stack_agent.<node id>.<task id>` for a global service) is named after its service (`stack_web`, `stack_web.2` for its second replica), since the task id changes on every deploy.
 
 ## Install
 

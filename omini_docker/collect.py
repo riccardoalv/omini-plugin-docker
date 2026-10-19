@@ -197,7 +197,18 @@ def networks(rows: Any) -> dict[str, Network]:
 
 
 def container_name(row: dict[str, Any]) -> str:
+    """The container's name. A Swarm task (`stack_web.1.<task id>`, or
+    `stack_agent.<node id>.<task id>` for a global service) is named after its
+    service, with its replica number past the first: the task id changes on
+    every deploy, the service and its slot do not."""
+    labels = row.get("Labels") or {}
+    service = str(labels.get("com.docker.swarm.service.name") or "")
     names = [str(n).lstrip("/") for n in row.get("Names") or [] if n]
+    if service:
+        task = str(labels.get("com.docker.swarm.task.name") or (names[0] if names else ""))
+        parts = task.split(".")
+        slot = parts[1] if len(parts) >= 3 and parts[1].isdigit() else ""
+        return f"{service}.{slot}" if slot and slot != "1" else service
     return names[0] if names else str(row.get("Id") or "")[:12]
 
 

@@ -323,3 +323,36 @@ def test_manifest_groups_the_advanced_fields():
         "verify_tls": True,
         "timeout_s": True,
     }
+
+
+def test_swarm_tasks_are_named_after_their_service():
+    from omini_docker.collect import container_name
+
+    def task(name, service):
+        return {
+            "Names": [f"/{name}"],
+            "Labels": {
+                "com.docker.swarm.service.name": service,
+                "com.docker.swarm.task.name": name,
+            },
+        }
+
+    # A replicated service's first replica, its second, and a global service.
+    assert (
+        container_name(task("homelab_portainer.1.eg4nowpx304rxxvt23mybj4zv", "homelab_portainer"))
+        == "homelab_portainer"
+    )
+    assert (
+        container_name(task("homelab_web.2.4r0zt3ko9yhetqnc53kzedm7o", "homelab_web"))
+        == "homelab_web.2"
+    )
+    assert (
+        container_name(
+            task(
+                "homelab_alloy.qqccdqlxxpeel4xstprdsfnnq.mjxqj1561hw6e66rp4265oz5s", "homelab_alloy"
+            )
+        )
+        == "homelab_alloy"
+    )
+    # Not a Swarm task: its own name.
+    assert container_name({"Names": ["/jellyfin"], "Labels": {}}) == "jellyfin"
