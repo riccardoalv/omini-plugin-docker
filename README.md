@@ -4,7 +4,7 @@
 
 It reads with `GET` requests only, and never starts, stops, pulls or inspects anything inside a container.
 
-Needs **Omini 1.7 or later** (it uses the HTTP client, optional reads and errors of the plugin SDK that ships with it).
+Needs **Omini 1.7 or later** (it uses the HTTP client, optional reads and errors of the plugin SDK that ships with it). With **Omini 1.9 or later**, each container and Swarm service is shown as the app the network scan found on its port (with its icon and web link) and Swarm services are read; on 1.7 and 1.8 containers are listed as before.
 
 > **Experimental.** This plugin was built from the official API documentation and tested against answers shaped like the documented ones, not on a real Docker host or Portainer server yet. Reports from real hosts are welcome.
 
