@@ -1,0 +1,76 @@
+[
+  {
+    "ID": "svc-jellyfin",
+    "Spec": {
+      "Name": "homelab_jellyfin",
+      "Labels": {"com.docker.stack.namespace": "homelab"},
+      "TaskTemplate": {"ContainerSpec": {"Image": "lscr.io/linuxserver/jellyfin:latest@sha256:9f6c3b2a1d0e8f7c6b5a4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a"}},
+      "Mode": {"Replicated": {"Replicas": 1}},
+      "EndpointSpec": {"Mode": "vip", "Ports": [{"Protocol": "tcp", "TargetPort": 8096, "PublishedPort": 8096, "PublishMode": "ingress"}]}
+    },
+    "Endpoint": {"Ports": [{"Protocol": "tcp", "TargetPort": 8096, "PublishedPort": 8096, "PublishMode": "ingress"}]},
+    "ServiceStatus": {"RunningTasks": 1, "DesiredTasks": 1, "CompletedTasks": 0}
+  },
+  {
+    "ID": "svc-portainer",
+    "Spec": {
+      "Name": "homelab_portainer",
+      "Labels": {"com.docker.stack.namespace": "homelab"},
+      "TaskTemplate": {"ContainerSpec": {"Image": "portainer/portainer-ce:2.33.2"}},
+      "Mode": {"Replicated": {"Replicas": 1}}
+    },
+    "Endpoint": {"Ports": [
+      {"Protocol": "tcp", "TargetPort": 9000, "PublishedPort": 9000, "PublishMode": "ingress"},
+      {"Protocol": "tcp", "TargetPort": 8000, "PublishedPort": 8000, "PublishMode": "ingress"}
+    ]}
+  },
+  {
+    "ID": "svc-npm",
+    "Spec": {
+      "Name": "homelab_nginx-proxy-manager",
+      "Labels": {"com.docker.stack.namespace": "homelab"},
+      "TaskTemplate": {"ContainerSpec": {"Image": "jc21/nginx-proxy-manager:latest"}},
+      "Mode": {"Replicated": {"Replicas": 1}}
+    },
+    "Endpoint": {"Ports": [
+      {"Protocol": "tcp", "TargetPort": 80, "PublishedPort": 80, "PublishMode": "host"},
+      {"Protocol": "tcp", "TargetPort": 81, "PublishedPort": 81, "PublishMode": "host"},
+      {"Protocol": "tcp", "TargetPort": 443, "PublishedPort": 443, "PublishMode": "host"}
+    ]},
+    "ServiceStatus": {"RunningTasks": 1, "DesiredTasks": 1}
+  },
+  {
+    "ID": "svc-alloy",
+    "Spec": {
+      "Name": "homelab_alloy",
+      "Labels": {"com.docker.stack.namespace": "homelab"},
+      "TaskTemplate": {"ContainerSpec": {"Image": "grafana/alloy:v1.11.0"}},
+      "Mode": {"Global": {}}
+    },
+    "Endpoint": {"Ports": [
+      {"Protocol": "udp", "TargetPort": 1514, "PublishedPort": 1514, "PublishMode": "host"},
+      {"Protocol": "tcp", "TargetPort": 1515, "PublishedPort": 1515, "PublishMode": "host"}
+    ]}
+  },
+  {
+    "ID": "svc-flaresolverr",
+    "Spec": {
+      "Name": "homelab_flaresolverr",
+      "Labels": {"com.docker.stack.namespace": "homelab"},
+      "TaskTemplate": {"ContainerSpec": {"Image": "ghcr.io/flaresolverr/flaresolverr:latest"}},
+      "Mode": {"Replicated": {"Replicas": 1}}
+    },
+    "Endpoint": {"Ports": [{"Protocol": "tcp", "TargetPort": 8191, "PublishedPort": 8191, "PublishMode": "ingress"}]},
+    "ServiceStatus": {"RunningTasks": 0, "DesiredTasks": 1}
+  },
+  {
+    "ID": "svc-redis",
+    "Spec": {
+      "Name": "homelab_redis",
+      "Labels": {"com.docker.stack.namespace": "homelab"},
+      "TaskTemplate": {"ContainerSpec": {"Image": "redis:7"}},
+      "Mode": {"Replicated": {"Replicas": 1}}
+    },
+    "Endpoint": {"Spec": {}}
+  }
+]

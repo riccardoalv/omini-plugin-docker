@@ -25,6 +25,9 @@ SECTIONS = {
     "info": "INFO=1 on the socket proxy (host name, CPUs, memory, operating system)",
     "networks": "NETWORKS=1 on the socket proxy (which containers have their own address)",
     "containers": "CONTAINERS=1 on the socket proxy (the containers)",
+    "services": "SERVICES=1 on the socket proxy (Swarm services and the ports they publish)",
+    "tasks": "TASKS=1 on the socket proxy (where Swarm services run)",
+    "nodes": "NODES=1 on the socket proxy (the swarm's nodes, where the routing mesh publishes)",
 }
 
 ENVIRONMENT_PATH = re.compile(r"^/endpoints/(\d+)/docker(/.*)?$")

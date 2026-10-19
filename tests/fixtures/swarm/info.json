@@ -1,0 +1,15 @@
+{
+  "Name": "master",
+  "OperatingSystem": "Ubuntu 24.04.3 LTS",
+  "NCPU": 8,
+  "MemTotal": 33605029888,
+  "ServerVersion": "28.5.1",
+  "Swarm": {
+    "NodeID": "q2l9xk3mh1v8w0b4n7c5d6e1f",
+    "NodeAddr": "192.168.1.42",
+    "LocalNodeState": "active",
+    "ControlAvailable": true,
+    "Managers": 1,
+    "Nodes": 2
+  }
+}

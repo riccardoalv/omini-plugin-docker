@@ -1,0 +1,52 @@
+[
+  {
+    "Id": "a1", "Names": ["/homelab_jellyfin.1.eg4nowpx304rxxvt23mybj4zv"], "Image": "lscr.io/linuxserver/jellyfin:latest@sha256:9f6c3b2a1d0e8f7c6b5a4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a",
+    "State": "running", "Ports": [{"PrivatePort": 8096, "Type": "tcp"}],
+    "Labels": {"com.docker.swarm.service.name": "homelab_jellyfin", "com.docker.swarm.task.name": "homelab_jellyfin.1.eg4nowpx304rxxvt23mybj4zv", "com.docker.stack.namespace": "homelab"},
+    "HostConfig": {"NetworkMode": "default"}, "NetworkSettings": {"Networks": {"homelab_default": {"IPAddress": "10.0.1.5"}, "ingress": {"IPAddress": "10.0.0.7"}}}
+  },
+  {
+    "Id": "a2", "Names": ["/homelab_portainer.1.4r0zt3ko9yhetqnc53kzedm7o"], "Image": "portainer/portainer-ce:2.33.2",
+    "State": "running", "Ports": [{"PrivatePort": 9000, "Type": "tcp"}, {"PrivatePort": 8000, "Type": "tcp"}],
+    "Labels": {"com.docker.swarm.service.name": "homelab_portainer", "com.docker.swarm.task.name": "homelab_portainer.1.4r0zt3ko9yhetqnc53kzedm7o"},
+    "HostConfig": {"NetworkMode": "default"}, "NetworkSettings": {"Networks": {"ingress": {"IPAddress": "10.0.0.8"}}}
+  },
+  {
+    "Id": "a3", "Names": ["/homelab_nginx-proxy-manager.1.n8m2k4j6h0g1f3d5s7a9p0o2i"], "Image": "jc21/nginx-proxy-manager:latest",
+    "State": "running",
+    "Ports": [
+      {"IP": "0.0.0.0", "PrivatePort": 80, "PublicPort": 80, "Type": "tcp"},
+      {"IP": "0.0.0.0", "PrivatePort": 81, "PublicPort": 81, "Type": "tcp"},
+      {"IP": "0.0.0.0", "PrivatePort": 443, "PublicPort": 443, "Type": "tcp"}
+    ],
+    "Labels": {"com.docker.swarm.service.name": "homelab_nginx-proxy-manager", "com.docker.swarm.task.name": "homelab_nginx-proxy-manager.1.n8m2k4j6h0g1f3d5s7a9p0o2i"},
+    "HostConfig": {"NetworkMode": "default"}, "NetworkSettings": {"Networks": {"homelab_default": {"IPAddress": "10.0.1.9"}}}
+  },
+  {
+    "Id": "a4", "Names": ["/homelab_alloy.q2l9xk3mh1v8w0b4n7c5d6e1f.mjxqj1561hw6e66rp4265oz5s"], "Image": "grafana/alloy:v1.11.0",
+    "State": "running",
+    "Ports": [
+      {"IP": "0.0.0.0", "PrivatePort": 1514, "PublicPort": 1514, "Type": "udp"},
+      {"IP": "0.0.0.0", "PrivatePort": 1515, "PublicPort": 1515, "Type": "tcp"}
+    ],
+    "Labels": {"com.docker.swarm.service.name": "homelab_alloy", "com.docker.swarm.task.name": "homelab_alloy.q2l9xk3mh1v8w0b4n7c5d6e1f.mjxqj1561hw6e66rp4265oz5s"},
+    "HostConfig": {"NetworkMode": "default"}, "NetworkSettings": {"Networks": {"homelab_default": {"IPAddress": "10.0.1.11"}}}
+  },
+  {
+    "Id": "a5", "Names": ["/homelab_redis.1.c3v5b7n9m1l2k4j6h8g0f2d4s"], "Image": "redis:7",
+    "State": "running", "Ports": [{"PrivatePort": 6379, "Type": "tcp"}],
+    "Labels": {"com.docker.swarm.service.name": "homelab_redis", "com.docker.swarm.task.name": "homelab_redis.1.c3v5b7n9m1l2k4j6h8g0f2d4s"},
+    "HostConfig": {"NetworkMode": "default"}, "NetworkSettings": {"Networks": {"homelab_default": {"IPAddress": "10.0.1.12"}}}
+  },
+  {
+    "Id": "a6", "Names": ["/openspeedtest"], "Image": "openspeedtest/latest",
+    "State": "running",
+    "Ports": [
+      {"IP": "0.0.0.0", "PrivatePort": 3000, "PublicPort": 3000, "Type": "tcp"},
+      {"IP": "::", "PrivatePort": 3000, "PublicPort": 3000, "Type": "tcp"},
+      {"IP": "127.0.0.1", "PrivatePort": 3001, "PublicPort": 3002, "Type": "tcp"}
+    ],
+    "Labels": {"com.docker.compose.project": "speed", "com.docker.compose.service": "openspeedtest"},
+    "HostConfig": {"NetworkMode": "bridge"}, "NetworkSettings": {"Networks": {"bridge": {"IPAddress": "172.17.0.2"}}}
+  }
+]

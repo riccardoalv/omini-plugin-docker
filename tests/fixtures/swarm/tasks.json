@@ -1,0 +1,9 @@
+[
+  {"ID": "t1", "ServiceID": "svc-jellyfin", "NodeID": "q2l9xk3mh1v8w0b4n7c5d6e1f", "Slot": 1, "Status": {"State": "running"}, "DesiredState": "running"},
+  {"ID": "t2", "ServiceID": "svc-portainer", "NodeID": "q2l9xk3mh1v8w0b4n7c5d6e1f", "Slot": 1, "Status": {"State": "running"}, "DesiredState": "running"},
+  {"ID": "t3", "ServiceID": "svc-npm", "NodeID": "q2l9xk3mh1v8w0b4n7c5d6e1f", "Slot": 1, "Status": {"State": "running"}, "DesiredState": "running"},
+  {"ID": "t4", "ServiceID": "svc-alloy", "NodeID": "q2l9xk3mh1v8w0b4n7c5d6e1f", "Status": {"State": "running"}, "DesiredState": "running"},
+  {"ID": "t5", "ServiceID": "svc-alloy", "NodeID": "w7p3r5t8y1u4i6o9a2s0d3f5g", "Status": {"State": "running"}, "DesiredState": "running"},
+  {"ID": "t6", "ServiceID": "svc-redis", "NodeID": "w7p3r5t8y1u4i6o9a2s0d3f5g", "Slot": 1, "Status": {"State": "running"}, "DesiredState": "running"},
+  {"ID": "t7", "ServiceID": "svc-flaresolverr", "NodeID": "w7p3r5t8y1u4i6o9a2s0d3f5g", "Slot": 1, "Status": {"State": "preparing"}, "DesiredState": "running"}
+]

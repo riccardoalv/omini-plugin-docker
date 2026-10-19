@@ -1,11 +1,15 @@
 """Turns Docker Engine (or Portainer) answers into Omini devices: one per
 Docker host, plus one per running container that can be reached on its own
-(an address on a macvlan / ipvlan network, or published ports), hung under
-the host that runs it. The other containers are the host's services."""
+(an address on a macvlan / ipvlan network, or published ports) and, on a
+Swarm manager, one per service that publishes ports, hung under the host
+that runs it. The other containers are the host's services. A container or
+service says what it runs and publishes (Device.container), so that Omini
+shows it as the app its network scan finds on those ports."""
 
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -25,6 +29,12 @@ from omini_docker.client import (
     NotFound,
     Unavailable,
 )
+
+try:  # Device.container came in a later SDK: without it, Swarm services are not read
+    from omini_sdk.models import Container, ContainerPort
+except ImportError:  # pragma: no cover
+    Container = ContainerPort = None  # type: ignore[assignment,misc]
+CONTAINER = Container is not None and "container" in Device.model_fields
 
 T = TypeVar("T")
 
@@ -269,6 +279,46 @@ def port_services(row: dict[str, Any], own: bool) -> list[Service]:
     return [seen[k] for k in sorted(seen)]
 
 
+def image_name(image: Any) -> str | None:
+    """The image without its digest ("jellyfin:latest@sha256:…" → "jellyfin:latest")."""
+    name = str(image or "").split("@", 1)[0].strip()
+    return name or None
+
+
+def container_port(port: int, proto: str, target: int | None) -> Any:
+    return ContainerPort(
+        port=port,
+        protocol=proto if proto in ("tcp", "udp", "sctp") else None,
+        target_port=target or None,
+    )
+
+
+def published_ports(row: dict[str, Any]) -> list[Any]:
+    """The ports a container publishes on its host's addresses (not on its
+    loopback, where nothing else on the network reaches them)."""
+    if not CONTAINER:
+        return []
+    seen: dict[tuple[int, str], Any] = {}
+    for p in row.get("Ports") or []:
+        if not isinstance(p, dict):
+            continue
+        public, private = counter(p.get("PublicPort")), counter(p.get("PrivatePort"))
+        bind = str(p.get("IP") or "").strip()
+        if not public or (bind and is_ip(bind) and ipaddress.ip_address(bind).is_loopback):
+            continue
+        proto = str(p.get("Type") or "tcp")
+        seen.setdefault((public, proto), container_port(public, proto, private))
+    return [seen[k] for k in sorted(seen)]
+
+
+def with_container(**facts: Any) -> dict[str, Any]:
+    """Device.container's keyword, on an SDK that has it."""
+    if not CONTAINER:
+        return {}
+    facts = {k: v for k, v in facts.items() if v not in (None, "", [])}
+    return {"container": Container(**facts)}
+
+
 @dataclass
 class Host:
     """What a container needs to know about the Docker host it runs on."""
@@ -335,6 +385,13 @@ def container_device(
                 remote_platform="Docker",
             )
         ],
+        **with_container(
+            name=name,
+            image=image_name(row.get("Image")),
+            stack=str((row.get("Labels") or {}).get("com.docker.compose.project") or "") or None,
+            state=str(row.get("State") or "") or None,
+            ports=published_ports(row),
+        ),
     )
 
 
@@ -344,6 +401,158 @@ def host_service(row: dict[str, Any], running: bool) -> Service:
     if running and mode == "host":
         desc += " (host network)"
     return Service(name=container_name(row), description=desc or None, running=running)
+
+
+# --- Swarm services ----------------------------------------------------------------
+
+
+def is_manager(info: dict[str, Any]) -> bool:
+    swarm = info.get("Swarm") or {}
+    return swarm.get("LocalNodeState") == "active" and bool(swarm.get("ControlAvailable"))
+
+
+@dataclass
+class Swarm:
+    """What a manager says about the swarm's services."""
+
+    services: list[dict[str, Any]]
+    tasks: list[dict[str, Any]]  # desired running
+    nodes: dict[str, str]  # node ID → its address
+
+
+def node_addresses(rows: Any) -> dict[str, str]:
+    """The address of each ready node. A manager may give 0.0.0.0 as its
+    address: its manager address (the one it listens on for the swarm) then."""
+    out = {}
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict) or not row.get("ID"):
+            continue
+        status = row.get("Status") or {}
+        if status.get("State") not in (None, "ready"):
+            continue
+        addr = address(status.get("Addr"))
+        if not addr:
+            manager = str((row.get("ManagerStatus") or {}).get("Addr") or "")
+            addr = address(urlsplit("//" + manager).hostname) if manager else None
+        if addr:
+            out[str(row["ID"])] = addr
+    return out
+
+
+def read_swarm(c: Client, env: Environment, missing: list[str]) -> Swarm | None:
+    """A manager's services (essential to the rest), their running tasks and
+    the swarm's nodes (each optional: SERVICES=1, TASKS=1, NODES=1)."""
+    services = optional(
+        "services",
+        missing,
+        lambda: c.get(env.prefix + "/services", params={"status": "true"}),
+        None,
+    )
+    if not isinstance(services, list):
+        return None
+    tasks = optional(
+        "tasks",
+        missing,
+        lambda: c.get(
+            env.prefix + "/tasks",
+            params={"filters": json.dumps({"desired-state": ["running"]})},
+        ),
+        [],
+    )
+    nodes = optional("nodes", missing, lambda: c.get(env.prefix + "/nodes"), [])
+    return Swarm(
+        services=[s for s in services if isinstance(s, dict)],
+        tasks=[t for t in tasks if isinstance(t, dict)] if isinstance(tasks, list) else [],
+        nodes=node_addresses(nodes),
+    )
+
+
+def service_ports(svc: dict[str, Any]) -> list[dict[str, Any]]:
+    """The ports a service publishes: what the swarm applied (Endpoint),
+    else what its spec asks for."""
+    ports = (svc.get("Endpoint") or {}).get("Ports") or (
+        (svc.get("Spec") or {}).get("EndpointSpec") or {}
+    ).get("Ports")
+    return [p for p in ports or [] if isinstance(p, dict) and counter(p.get("PublishedPort"))]
+
+
+def service_device(
+    svc: dict[str, Any], swarm: Swarm, host: Host, env: Environment
+) -> Device | None:
+    """A service that publishes ports, else None. Through the routing mesh
+    (ingress) its ports answer on every node of the swarm; published in host
+    mode, on the nodes that run it."""
+    spec = svc.get("Spec") or {}
+    name = str(spec.get("Name") or "")
+    ports = service_ports(svc)
+    if not name or not ports:
+        return None
+    tasks = [t for t in swarm.tasks if t.get("ServiceID") == svc.get("ID")]
+    status = svc.get("ServiceStatus") or {}
+    mode = spec.get("Mode") or {}
+    replicas = counter(((mode.get("Replicated") or {}) or {}).get("Replicas"))
+    if replicas is None:
+        replicas = counter(status.get("DesiredTasks"))
+        if replicas is None and "Global" in mode and swarm.tasks:
+            replicas = len(tasks)
+    running = counter(status.get("RunningTasks"))
+    if running is None and swarm.tasks:
+        running = sum(1 for t in tasks if (t.get("Status") or {}).get("State") == "running")
+    image = image_name(((spec.get("TaskTemplate") or {}).get("ContainerSpec") or {}).get("Image"))
+    stack = str((spec.get("Labels") or {}).get("com.docker.stack.namespace") or "") or None
+    mesh = any(str(p.get("PublishMode") or "ingress") == "ingress" for p in ports)
+    if mesh:
+        where = set(swarm.nodes.values())
+    else:
+        nodes = {str(t.get("NodeID")) for t in tasks}
+        where = {addr for node, addr in swarm.nodes.items() if node in nodes}
+    where.discard(host.address or "")
+    published, services = {}, {}
+    for p in ports:
+        port, target = counter(p.get("PublishedPort")), counter(p.get("TargetPort"))
+        proto = str(p.get("Protocol") or "tcp")
+        published.setdefault((port, proto), container_port(port, proto, target))
+        services.setdefault(
+            (port, proto),
+            Service(
+                name=f"{port}/{proto}",
+                description=f"published from container port {target or port}/{proto}"
+                + ("" if str(p.get("PublishMode") or "ingress") == "ingress" else " (host mode)"),
+                running=running is None or running > 0,
+            ),
+        )
+    return Device(
+        key=f"docker:{env.host}:{name}",
+        name=name,
+        role="server",
+        vendor="Docker",
+        model="Docker Swarm service",
+        os_version=image,
+        services=[services[k] for k in sorted(services)],
+        neighbors=[
+            Neighbor(
+                local_port="ingress" if mesh else "host",
+                protocol="other",
+                remote_name=host.name,
+                remote_ip=host.address,
+                remote_platform="Docker",
+            )
+        ],
+        **with_container(
+            name=name,
+            image=image,
+            stack=stack,
+            state="running" if running else None,
+            replicas=replicas,
+            running=running,
+            ports=[published[k] for k in sorted(published)],
+            addresses=sorted(where, key=lambda ip: (":" in ip, ipaddress.ip_address(ip))),
+        ),
+    )
+
+
+def service_of(row: dict[str, Any]) -> str:
+    return str((row.get("Labels") or {}).get("com.docker.swarm.service.name") or "")
 
 
 # --- a host and its containers ---------------------------------------------------
@@ -376,7 +585,19 @@ def environment_devices(c: Client, env: Environment, missing: list[str]) -> list
     name = str(info.get("Name") or env.name or env.host)
     host = Host(key=f"docker:{env.host}", name=name, address=env.address)
     devices, services = [], []
+    # A manager's services that publish ports are devices of their own (read
+    # once, from the manager): their tasks here are no containers of their own.
+    swarm = read_swarm(c, env, missing) if CONTAINER and is_manager(info) else None
+    published: set[str] = set()
+    for svc in swarm.services if swarm else []:
+        device = service_device(svc, swarm, host, env)
+        if device is not None:
+            devices.append(device)
+            published.add(device.name)
+    devices.sort(key=lambda d: d.name)
     for row in sorted(rows, key=container_name):
+        if service_of(row) in published:
+            continue
         running = row.get("State") == "running"
         device = container_device(row, nets, host, env) if running else None
         if device is not None:
@@ -453,11 +674,13 @@ def test(cfg: Config) -> str:
         else:
             label = f"Portainer {portainer_version(c) or ''}".strip()
         envs = environments(c, cfg)
-        running = own = 0
+        running = own = services = 0
         for env in envs:
             for device in environment_devices(c, env, missing):
                 if device.key.startswith("docker:") and device.neighbors is None:
                     running += sum(1 for s in device.services or [] if s.running)
+                elif device.model == "Docker Swarm service":
+                    services += 1
                 else:
                     running += 1
                     own += 1
@@ -470,6 +693,8 @@ def test(cfg: Config) -> str:
             f"Connected to {label}: {where}{running} running container{'s' if running != 1 else ''}"
             f" ({own} reachable on their own)"
         )
+        if services:
+            msg += f", {services} Swarm service{'s' if services != 1 else ''} publishing ports"
         if missing:
             msg += ". Not allowed: " + "; ".join(sorted(set(missing)))
         return msg

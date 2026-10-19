@@ -6,7 +6,7 @@ from omini_sdk import Config, PluginError
 from omini_sdk.plugin import Plugin
 
 from omini_docker.client import ENGINE, PORTAINER, base_url
-from omini_docker.collect import collect, wait_s
+from omini_docker.collect import CONTAINER, collect, wait_s
 from omini_docker.collect import test as connection_test
 
 
@@ -356,3 +356,23 @@ def test_swarm_tasks_are_named_after_their_service():
     )
     # Not a Swarm task: its own name.
     assert container_name({"Names": ["/jellyfin"], "Labels": {}}) == "jellyfin"
+
+
+@pytest.mark.skipif(not CONTAINER, reason="the SDK has no Device.container yet")
+def test_a_container_says_what_it_runs_and_publishes(docker, cfg):
+    devices = by_name(collect(cfg))
+    jf = devices["jellyfin"].container
+    assert (jf.name, jf.image, jf.state, jf.stack) == (
+        "jellyfin",
+        "jellyfin/jellyfin:10.9.11",
+        "running",
+        None,
+    )
+    # Published once for 0.0.0.0 and ::; 8920 is exposed, not published.
+    assert [(p.port, p.protocol, p.target_port) for p in jf.ports] == [
+        (1900, "udp", 1900),
+        (8096, "tcp", 8096),
+    ]
+    assert jf.replicas is None and jf.addresses is None  # not a Swarm service
+    pihole = devices["pihole"].container  # its own address: its ports are scanned there
+    assert pihole.name == "pihole" and pihole.ports is None

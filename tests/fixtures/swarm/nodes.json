@@ -1,0 +1,18 @@
+[
+  {
+    "ID": "q2l9xk3mh1v8w0b4n7c5d6e1f",
+    "Description": {"Hostname": "master"},
+    "Status": {"State": "ready", "Addr": "0.0.0.0"},
+    "ManagerStatus": {"Leader": true, "Reachability": "reachable", "Addr": "192.168.1.42:2377"}
+  },
+  {
+    "ID": "w7p3r5t8y1u4i6o9a2s0d3f5g",
+    "Description": {"Hostname": "worker"},
+    "Status": {"State": "ready", "Addr": "192.168.1.43"}
+  },
+  {
+    "ID": "z0x9c8v7b6n5m4l3k2j1h0g9f",
+    "Description": {"Hostname": "old-worker"},
+    "Status": {"State": "down", "Addr": "192.168.1.44"}
+  }
+]
