@@ -1,4 +1,6 @@
-"""Minimal read-only client for the Docker Engine API and Portainer's API.
+"""Read-only client for the Docker Engine API and Portainer's API, on the
+SDK's HTTP client: timeouts, retries, and errors that name what a socket
+proxy (or Portainer) must allow.
 
 https://docs.docker.com/reference/api/engine/
 https://docs.portainer.io/api/docs
@@ -6,116 +8,98 @@ https://docs.portainer.io/api/docs
 
 from __future__ import annotations
 
-import json
-from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+import re
 
 import httpx
-from omini_sdk import PluginError, log
+from omini_sdk.http import Client as HttpClient
+from omini_sdk.http import Forbidden, NotFound, Unavailable, normalize_url
+
+__all__ = ["ENGINE", "PORTAINER", "SECTIONS", "Client", "Forbidden", "NotFound", "Unavailable"]
 
 ENGINE = "Docker Engine"
 PORTAINER = "Portainer"
 
+# What a socket proxy (tecnativa/docker-socket-proxy and alikes) must allow
+# for each piece of data, by the API section it opens.
+SECTIONS = {
+    "info": "INFO=1 on the socket proxy (host name, CPUs, memory, operating system)",
+    "networks": "NETWORKS=1 on the socket proxy (which containers have their own address)",
+    "containers": "CONTAINERS=1 on the socket proxy (the containers)",
+}
 
-class Forbidden(Exception):
-    """The API refused a path (HTTP 403): a socket proxy that does not allow
-    that section, or a Portainer user without access to an environment."""
-
-
-class NotFound(Exception):
-    """The path does not exist on this version (HTTP 404)."""
-
-
-class Unavailable(Exception):
-    """The API answered with another error for this path (an environment that
-    is down, an Edge agent without a tunnel...)."""
+ENVIRONMENT_PATH = re.compile(r"^/endpoints/(\d+)/docker(/.*)?$")
 
 
 def base_url(url: str, source: str) -> str:
     """'192.168.1.50' → 'http://192.168.1.50:2375' (Docker Engine) or
     'https://192.168.1.50:9443' (Portainer). An explicit scheme and port are kept."""
-    url = url.strip().rstrip("/")
-    if "://" not in url:
-        url = ("https://" if source == PORTAINER else "http://") + url
+    url = url.strip()
     if url.startswith("tcp://"):  # as in DOCKER_HOST
         url = "http://" + url[len("tcp://") :]
-    parts = urlsplit(url)
-    if parts.scheme not in ("http", "https"):
-        raise PluginError("the address must start with http:// or https://")
-    if not parts.hostname:
-        raise PluginError("the address has no host")
-    netloc = parts.netloc
-    if parts.port is None:
-        if source == PORTAINER:
-            port = 9443 if parts.scheme == "https" else 9000
-        else:
-            port = 2376 if parts.scheme == "https" else 2375
-        netloc = f"{netloc}:{port}"
-    path = parts.path
-    if source == PORTAINER and path.endswith("/api"):
-        path = path[: -len("/api")]
-    return urlunsplit((parts.scheme, netloc, path, "", ""))
+    if source == PORTAINER:
+        return normalize_url(
+            url, scheme="https", port={"https": 9443, "http": 9000}, strip=("/api",)
+        )
+    return normalize_url(url, scheme="http", port={"https": 2376, "http": 2375})
 
 
-class Client:
+def section(path: str) -> str | None:
+    """The socket proxy section of an Engine API path ('/networks' → NETWORKS)."""
+    name = path.lstrip("/").split("/", 1)[0]
+    return SECTIONS.get(name)
+
+
+class Client(HttpClient):
     def __init__(
         self,
         url: str,
         source: str = ENGINE,
         token: str = "",
         verify_tls: bool = False,
-        timeout: float = 10,
+        timeout: float = 15,
         transport: httpx.BaseTransport | None = None,
     ):
         self.source = source
-        self.base = base_url(url, source)
-        headers = {"Accept": "application/json", "User-Agent": "omini-plugin-docker"}
-        if source == PORTAINER:
-            headers["X-API-Key"] = token
-        self.http = httpx.Client(
-            base_url=self.base + ("/api" if source == PORTAINER else ""),
-            verify=verify_tls,
+        portainer = source == PORTAINER
+        base = base_url(url, source)
+        super().__init__(
+            base,
+            name=source,
+            api="/api" if portainer else "",
+            verify_tls=verify_tls,
             timeout=timeout,
-            headers=headers,
+            headers={"X-API-Key": token} if portainer else None,
+            user_agent="omini-plugin-docker",
+            unauthorized=(
+                "Portainer rejected the access token: check it, or create a new one"
+                if portainer
+                else f"{base} asks for authentication: the Docker Engine API has none, "
+                "is it a Docker API or a socket proxy?"
+            ),
+            forbidden_hint=self.needs,
             transport=transport,
         )
 
-    @property
-    def host(self) -> str:
-        return urlsplit(self.base).hostname or ""
+    def needs(self, method: str, path: str) -> str | None:
+        """What a refused path needs: the socket proxy section to turn on, or
+        (Portainer) the user's access to the environment."""
+        if self.source == ENGINE:
+            return section(path)
+        m = ENVIRONMENT_PATH.match(path)
+        if m:
+            return f"access to Portainer environment {m.group(1)} (Environments → Manage access)"
+        return None
 
-    def close(self) -> None:
-        self.http.close()
-
-    def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        """GETs an API path and returns its JSON."""
-        try:
-            r = self.http.get(path, params=params)
-        except httpx.ConnectError as e:
-            raise PluginError(f"cannot connect to {self.base}") from e
-        except httpx.TimeoutException as e:
-            raise PluginError(f"{self.base} did not answer in time") from e
-        except httpx.HTTPError as e:
-            raise PluginError(f"request to {self.base} failed ({type(e).__name__})") from e
-        if r.status_code == 401:
-            if self.source == PORTAINER:
-                raise PluginError(
-                    "Portainer rejected the access token: check it, or create a new one"
-                )
-            raise PluginError(
-                f"{self.base} asks for authentication: the Docker Engine API has none, "
-                "is it a Docker API or a socket proxy?"
+    def check(self, r: httpx.Response, method: str, path: str) -> None:
+        """As the SDK's, but another 4xx to a read is the environment being
+        unavailable (an Edge agent without a tunnel, a section the proxy
+        answers otherwise), not a bug: it is skipped like a server error."""
+        status = r.status_code
+        if 400 <= status < 500 and status not in (401, 403, 404, 410) and method == "GET":
+            raise Unavailable(
+                f"{self.name} answered {status} for {path}",
+                status=status,
+                method=method,
+                resource=path,
             )
-        if r.status_code == 403:
-            raise Forbidden(path)
-        if r.status_code == 404:
-            raise NotFound(path)
-        if r.status_code >= 400:
-            raise Unavailable(f"{path}: HTTP {r.status_code} {r.reason_phrase}".strip())
-        try:
-            return r.json()
-        except json.JSONDecodeError as e:
-            log.debug("%s answered %s with something that is not JSON", self.base, path)
-            raise PluginError(
-                f"{self.base} did not answer with JSON: is it the {self.source} address?"
-            ) from e
+        super().check(r, method, path)

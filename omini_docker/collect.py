@@ -13,8 +13,18 @@ from typing import Any, TypeVar
 from urllib.parse import urlsplit
 
 from omini_sdk import Config, Device, Interface, Neighbor, PluginError, Service, log
+from omini_sdk import optional as sdk_optional
+from omini_sdk.http import settings as http_settings
 
-from omini_docker.client import ENGINE, PORTAINER, Client, Forbidden, NotFound, Unavailable
+from omini_docker.client import (
+    ENGINE,
+    PORTAINER,
+    SECTIONS,
+    Client,
+    Forbidden,
+    NotFound,
+    Unavailable,
+)
 
 T = TypeVar("T")
 
@@ -27,18 +37,11 @@ OWN_ADDRESS = {"macvlan", "ipvlan"}
 # 2: Portainer agent, 4: Edge agent); Kubernetes and ACI are not read.
 DOCKER_ENVIRONMENTS = {1, 2, 4}
 
-# What a socket proxy (tecnativa/docker-socket-proxy and alikes) must allow
-# for each piece of data, by the API section it opens.
-SECTIONS = {
-    "info": "INFO=1 on the socket proxy (host name, CPUs, memory, operating system)",
-    "networks": "NETWORKS=1 on the socket proxy (which containers have their own address)",
-    "containers": "CONTAINERS=1 on the socket proxy (the containers)",
-}
-
 
 def wait_s(cfg: Config) -> float:
-    """How long to wait for each answer: the "timeout_s" field, 5 to 120 s."""
-    return float(min(max(cfg.int("timeout_s", 10) or 10, 5), 120))
+    """How long to wait for each answer: the "timeout_s" field (the SDK's
+    default, 15 s), kept within 5 to 120 s."""
+    return float(min(max(http_settings(cfg)["timeout"], 5), 120))
 
 
 def source_of(cfg: Config) -> str:
@@ -56,8 +59,7 @@ def client_from(cfg: Config) -> Client:
         url,
         source=source,
         token=token,
-        verify_tls=cfg.bool("verify_tls", False),
-        timeout=wait_s(cfg),
+        **{**http_settings(cfg), "timeout": wait_s(cfg)},
     )
 
 
@@ -100,21 +102,9 @@ def is_ip(host: str | None) -> bool:
 
 def optional(what: str, missing: list[str], fn: Callable[[], T], default: T) -> T:
     """Optional data: a section the socket proxy does not allow, or an older
-    API without it, never fails the collection."""
-    try:
-        return fn()
-    except Forbidden:
-        log.warning("not allowed to read %s (%s)", what, SECTIONS.get(what, what))
-        missing.append(SECTIONS.get(what, what))
-    except NotFound:
-        log.info("%s not available on this Docker API", what)
-    except Unavailable as e:
-        log.info("%s not available: %s", what, e)
-    except PluginError:
-        raise
-    except Exception:
-        log.exception("could not read %s", what)
-    return default
+    API without it, never fails the collection (the SDK's optional); what a
+    refusal needs (the client's hint) goes in ``missing``."""
+    return sdk_optional(what, fn, default, missing=missing)
 
 
 # --- environments ------------------------------------------------------------
@@ -135,7 +125,8 @@ class Environment:
 
 def environment_host(endpoint: dict[str, Any], portainer_host: str) -> str:
     """tcp://10.0.0.5:9001 → 10.0.0.5. A local socket (unix://) is the host
-    Portainer runs on; an Edge agent without an address is named."""
+    Portainer runs on; an Edge agent without an address is its environment
+    ID (stable; its name, which can be edited, is shown instead)."""
     url = str(endpoint.get("URL") or "")
     if url.startswith(("unix://", "npipe://")):
         return portainer_host
@@ -143,7 +134,7 @@ def environment_host(endpoint: dict[str, Any], portainer_host: str) -> str:
         host = urlsplit(url).hostname
         if host:
             return host
-    return str(endpoint.get("Name") or f"environment {endpoint.get('Id')}")
+    return f"portainer-environment-{endpoint.get('Id')}"
 
 
 def environments(c: Client, cfg: Config) -> list[Environment]:
@@ -316,6 +307,7 @@ def container_device(
         name=name,
         host=ips[0] if ips else None,
         role="server",
+        vendor="Docker",
         model="Docker container",
         os_version=str(row.get("Image") or "") or None,
         macs=macs or None,
@@ -385,6 +377,7 @@ def environment_devices(c: Client, env: Environment, missing: list[str]) -> list
         name=name,
         host=env.address,
         role="server",
+        vendor="Docker",
         os_version=str(info.get("OperatingSystem") or "") or None,
         cpu_count=counter(info.get("NCPU")) or None,
         mem_total_bytes=counter(info.get("MemTotal")),
@@ -437,7 +430,11 @@ def test(cfg: Config) -> str:
         if c.source == ENGINE:
             try:
                 version = c.get("/version")
-            except (Forbidden, NotFound, Unavailable) as e:
+            except Unavailable as e:
+                if e.status is None:  # out of reach, or no answer in time
+                    raise
+                raise PluginError(f"{c.base} does not look like a Docker API (no version)") from e
+            except (Forbidden, NotFound) as e:
                 raise PluginError(f"{c.base} does not look like a Docker API (no version)") from e
             if not isinstance(version, dict) or not version.get("ApiVersion"):
                 raise PluginError(f"{c.base} does not look like a Docker API (no version)")

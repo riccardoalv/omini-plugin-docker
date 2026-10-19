@@ -4,6 +4,8 @@
 
 It reads with `GET` requests only, and never starts, stops, pulls or inspects anything inside a container.
 
+Needs **Omini 1.7 or later** (it uses the HTTP client, optional reads and errors of the plugin SDK that ships with it).
+
 > **Experimental.** This plugin was built from the official API documentation and tested against answers shaped like the documented ones, not on a real Docker host or Portainer server yet. Reports from real hosts are welcome.
 
 ## What it reads
@@ -72,7 +74,7 @@ A Docker API over TLS (`https://host:2376`) works when it does not ask for a cli
 2. Sign in as that user, then **My account → Access tokens → Add access token**. Copy the token (shown once).
 3. In Omini: **Read through** Portainer, the address of Portainer (`https://192.168.1.50:9443`), the token, and optionally one environment ID (else every Docker environment the user sees).
 
-Docker environments (local socket, Portainer agent, Edge agent) are read; Kubernetes and Azure ACI environments and environments Portainer reports down are skipped. An environment reached on a local socket (`unix://`) is the host Portainer runs on; one behind an agent (`tcp://192.168.1.60:9001`) is that agent's address; an Edge agent without an address is named after the environment. One environment failing never fails the others.
+Docker environments (local socket, Portainer agent, Edge agent) are read; Kubernetes and Azure ACI environments and environments Portainer reports down are skipped. An environment reached on a local socket (`unix://`) is the host Portainer runs on; one behind an agent (`tcp://192.168.1.60:9001`) is that agent's address; an Edge agent without an address is keyed by its environment ID (`docker:portainer-environment-<id>`) and named after the environment. One environment failing never fails the others.
 
 ## Form fields
 
@@ -83,11 +85,11 @@ Docker environments (local socket, Portainer agent, Edge agent) are read; Kubern
 | Portainer access token | `ptr_…` | Portainer only. Stored encrypted by Omini, never logged |
 | Portainer environment ID | `2` | Portainer only, optional: empty reads every Docker environment |
 | Verify the TLS certificate (Advanced) | off | Portainer uses a self-signed certificate by default |
-| Wait for an answer, seconds (Advanced) | `10` | How long to wait for each answer (5 to 120) |
+| Timeout, seconds (Advanced) | `15` | How long to wait for each answer (5 to 120). A refused connection or a busy API (429, 503) is asked again, twice, with a pause; a read that timed out, once |
 
 ## How it works
 
-Every request is a `GET`. Docker Engine: to the address itself, unversioned (the daemon answers with its own API version). Portainer: to `<address>/api/…` with the header `X-API-Key: <token>`, and the Engine API of each environment through Portainer's proxy, `/api/endpoints/{id}/docker/…`.
+Every request is a `GET`. Hosts and containers are reported with the vendor `Docker`. A section the API refuses (403) or does not have (404), or that answers another error, is skipped and logged, never failing the collection, except the container list; **Test connection** lists what a refusal needs (a socket proxy section, or a Portainer user's access to an environment). Docker Engine: to the address itself, unversioned (the daemon answers with its own API version). Portainer: to `<address>/api/…` with the header `X-API-Key: <token>`, and the Engine API of each environment through Portainer's proxy, `/api/endpoints/{id}/docker/…`.
 
 | Endpoint | Socket proxy section | Read for |
 |---|---|---|

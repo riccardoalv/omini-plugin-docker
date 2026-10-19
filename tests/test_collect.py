@@ -21,6 +21,7 @@ def test_reads_the_host(docker, cfg):
     host = devices["docker1"]
     assert host.key == "docker:192.168.1.50"  # the Engine API exposes no MAC
     assert host.role == "server" and host.host == "192.168.1.50"
+    assert host.vendor == "Docker" and devices["pihole"].vendor == "Docker"
     assert host.ips == ["192.168.1.50"] and host.macs is None
     assert host.os_version == "Ubuntu 24.04.1 LTS"
     assert (host.cpu_count, host.mem_total_bytes) == (4, 16649183232)
@@ -121,26 +122,62 @@ def test_not_docker(docker, cfg):
         connection_test(cfg)
 
 
-def test_unreachable_host(cfg):
+def test_unreachable_host(cfg, monkeypatch):
+    pauses = []
+    monkeypatch.setattr("time.sleep", pauses.append)
     cfg["url"] = "http://127.0.0.1:9"
     with pytest.raises(PluginError, match="cannot connect"):
         connection_test(cfg)
+    assert pauses == [1.0, 2.0]  # a refused connection is tried twice more
 
 
-def test_a_timeout_is_an_error_the_user_can_read(monkeypatch, cfg):
+def with_transport(monkeypatch, handler):
     from functools import partial
 
     import omini_docker.collect as collect_module
     from omini_docker.client import Client
 
+    monkeypatch.setattr(
+        collect_module, "Client", partial(Client, transport=httpx.MockTransport(handler))
+    )
+
+
+def test_a_timeout_is_an_error_the_user_can_read(monkeypatch, cfg):
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+
     def slow(request):
         raise httpx.ReadTimeout("slow", request=request)
 
-    monkeypatch.setattr(
-        collect_module, "Client", partial(Client, transport=httpx.MockTransport(slow))
-    )
+    with_transport(monkeypatch, slow)
     with pytest.raises(PluginError, match="did not answer in time"):
         collect(cfg)
+    with pytest.raises(PluginError, match="did not answer in time"):
+        connection_test(cfg)  # not "does not look like a Docker API"
+
+
+def test_a_busy_api_is_asked_again(docker, cfg, monkeypatch):
+    pauses = []
+    monkeypatch.setattr("time.sleep", pauses.append)
+    busy = {"left": 1}
+
+    def flaky(request):
+        if busy["left"]:
+            busy["left"] -= 1
+            return httpx.Response(503)
+        return docker.handler(request)
+
+    with_transport(monkeypatch, flaky)
+    assert by_name(collect(cfg))["docker1"].cpu_count == 4
+    assert pauses == [1.0]
+
+
+def test_an_optional_section_that_fails_is_skipped(docker, cfg):
+    docker.errors["/info"] = 500
+    docker.errors["/networks"] = 400  # answered otherwise: not a bug of the plugin
+    devices = by_name(collect(cfg))
+    assert list(devices) == ["192.168.1.50", "jellyfin"]
+    assert devices["192.168.1.50"].cpu_count is None
+    assert "Not allowed" not in connection_test(cfg)
 
 
 # --- Portainer -----------------------------------------------------------------
@@ -196,6 +233,21 @@ def test_portainer_errors_the_user_can_act_on(docker, portainer_cfg):
         collect(portainer_cfg)
 
 
+def test_portainer_names_the_environment_a_user_cannot_read(docker, portainer_cfg):
+    docker.errors["/api/endpoints/2/docker/networks"] = 403
+    msg = connection_test(portainer_cfg)
+    assert msg.endswith(
+        "Not allowed: access to Portainer environment 2 (Environments → Manage access)"
+    )
+
+
+def test_an_edge_agent_without_an_address_is_keyed_by_its_id(docker, portainer_cfg):
+    from omini_docker.collect import environment_host
+
+    edge = {"Id": 7, "Name": "Office NAS", "URL": ""}
+    assert environment_host(edge, "192.168.1.50") == "portainer-environment-7"
+
+
 def test_portainer_user_without_access(docker, portainer_cfg):
     docker.errors["/api/endpoints/1/docker/containers/"] = 403
     portainer_cfg["environment"] = 1
@@ -231,7 +283,7 @@ def test_required_fields(docker, cfg):
 
 
 def test_waits_as_long_as_asked(cfg):
-    assert wait_s(cfg) == 10
+    assert wait_s(cfg) == 15  # the SDK's default, as in every plugin
     assert wait_s(Config({"timeout_s": 90}, None)) == 90
     assert wait_s(Config({"timeout_s": 1}, None)) == 5
     assert wait_s(Config({"timeout_s": 999}, None)) == 120
